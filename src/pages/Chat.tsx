@@ -1,26 +1,97 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Send, User, Bot } from "lucide-react";
+import { Send, User, Bot, Trash2, Volume2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { Navbar } from "@/components/Navbar";
 
 type Message = {
+  id?: string;
   role: "user" | "assistant";
   content: string;
 };
 
-const Chat = () => {
+const ChatContent = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Load chat history
+  useEffect(() => {
+    if (user) {
+      loadChatHistory();
+    }
+  }, [user]);
+
+  const loadChatHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("chat_history")
+        .select("*")
+        .eq("user_id", user?.id)
+        .order("created_at", { ascending: true })
+        .limit(50);
+
+      if (error) throw error;
+
+      if (data) {
+        setMessages(data.map(msg => ({
+          id: msg.id,
+          role: msg.role as "user" | "assistant",
+          content: msg.content,
+        })));
+      }
+    } catch (error) {
+      console.error("Error loading chat history:", error);
+    }
+  };
+
+  const saveChatMessage = async (role: "user" | "assistant", content: string) => {
+    if (!user) return;
+    
+    try {
+      await supabase.from("chat_history").insert({
+        user_id: user.id,
+        role,
+        content,
+      });
+    } catch (error) {
+      console.error("Error saving message:", error);
+    }
+  };
+
+  const clearHistory = async () => {
+    if (!user) return;
+    
+    try {
+      await supabase.from("chat_history").delete().eq("user_id", user.id);
+      setMessages([]);
+      toast({
+        title: "History cleared",
+        description: "Your chat history has been deleted.",
+      });
+    } catch (error) {
+      console.error("Error clearing history:", error);
+      toast({
+        title: "Error",
+        description: "Failed to clear history.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !user) return;
 
     const userMessage: Message = { role: "user", content: input };
     setMessages((prev) => [...prev, userMessage]);
+    saveChatMessage("user", input);
     setInput("");
     setIsLoading(true);
 
@@ -87,6 +158,11 @@ const Chat = () => {
           }
         }
       }
+
+      // Save assistant message
+      if (assistantContent) {
+        saveChatMessage("assistant", assistantContent);
+      }
     } catch (error) {
       console.error("Chat error:", error);
       toast({
@@ -100,15 +176,24 @@ const Chat = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Chat with Your Doppelgänger
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Ask questions and see responses in your unique style
-          </p>
+    <div className="min-h-screen bg-background flex flex-col">
+      <Navbar />
+      <div className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
+        <div className="mb-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Chat with Your Doppelgänger
+            </h1>
+            <p className="text-muted-foreground mt-2">
+              Ask questions and see responses in your unique style
+            </p>
+          </div>
+          {messages.length > 0 && (
+            <Button variant="outline" size="sm" onClick={clearHistory}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear History
+            </Button>
+          )}
         </div>
 
         <Card className="h-[600px] flex flex-col">
@@ -171,5 +256,11 @@ const Chat = () => {
     </div>
   );
 };
+
+const Chat = () => (
+  <ProtectedRoute>
+    <ChatContent />
+  </ProtectedRoute>
+);
 
 export default Chat;

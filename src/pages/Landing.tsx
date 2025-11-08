@@ -27,18 +27,18 @@ const Landing = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
               size="lg" 
-              onClick={() => navigate("/chat")}
+              onClick={() => navigate("/auth")}
               className="text-lg px-8 shadow-lg hover:shadow-xl transition-all"
             >
-              Start Chatting
+              Get Started
             </Button>
             <Button 
               size="lg" 
               variant="outline"
-              onClick={() => navigate("/dashboard")}
+              onClick={() => navigate("/auth")}
               className="text-lg px-8"
             >
-              View Dashboard
+              Sign In
             </Button>
           </div>
         </div>
