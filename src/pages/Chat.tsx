@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Send, User, Bot, Trash2, Volume2 } from "lucide-react";
+import { Send, User, Bot, Trash2, Volume2, VolumeX } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,6 +19,9 @@ const ChatContent = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -63,6 +66,56 @@ const ChatContent = () => {
       });
     } catch (error) {
       console.error("Error saving message:", error);
+    }
+  };
+
+  const playTextToSpeech = async (text: string) => {
+    if (!voiceEnabled || !text) return;
+
+    try {
+      setIsPlayingAudio(true);
+      
+      const response = await fetch(
+        `https://bpglcfechtxoukhfnhim.supabase.co/functions/v1/text-to-speech`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ text, voice: "Aria" }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to generate speech");
+
+      const { audioContent } = await response.json();
+      const audioBlob = new Blob(
+        [Uint8Array.from(atob(audioContent), (c) => c.charCodeAt(0))],
+        { type: "audio/mpeg" }
+      );
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+      
+      audio.onended = () => {
+        setIsPlayingAudio(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      audio.onerror = () => {
+        setIsPlayingAudio(false);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      await audio.play();
+    } catch (error) {
+      console.error("Error playing audio:", error);
+      setIsPlayingAudio(false);
     }
   };
 
@@ -165,6 +218,11 @@ const ChatContent = () => {
       // Save assistant message
       if (assistantContent) {
         saveChatMessage("assistant", assistantContent);
+        
+        // Play audio for assistant response
+        if (voiceEnabled) {
+          await playTextToSpeech(assistantContent);
+        }
       }
     } catch (error) {
       console.error("Chat error:", error);
@@ -192,10 +250,35 @@ const ChatContent = () => {
             </p>
           </div>
           {messages.length > 0 && (
-            <Button variant="outline" size="sm" onClick={clearHistory}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear History
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={clearHistory}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear History
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setVoiceEnabled(!voiceEnabled);
+                  if (audioRef.current && isPlayingAudio) {
+                    audioRef.current.pause();
+                    setIsPlayingAudio(false);
+                  }
+                }}
+              >
+                {voiceEnabled ? (
+                  <>
+                    <Volume2 className="h-4 w-4 mr-2" />
+                    Voice On
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="h-4 w-4 mr-2" />
+                    Voice Off
+                  </>
+                )}
+              </Button>
+            </div>
           )}
         </div>
 
