@@ -2,7 +2,10 @@
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/05566305-8649-4708-9f94-8669529b7ee4
+**URL**: 
+https://voice-signature.netlify.app/
+
+https://lovable.dev/projects/05566305-8649-4708-9f94-8669529b7ee4
 
 ## How can I edit this code?
 
