@@ -1,14 +1,15 @@
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Brain, MessageSquare, Mic, Shield } from "lucide-react";
+import Footer from "@/components/Footer";
 
 const Landing = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-primary/5">
+    <div className="min-h-screen bg-gradient-to-b from-background to-primary/5 flex flex-col">
       {/* Hero Section */}
-      <div className="container mx-auto px-4 py-20">
+      <div className="container mx-auto px-4 py-20 flex-1">
         <div className="text-center max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full mb-6 animate-pulse">
             <Brain className="h-4 w-4" />
@@ -76,6 +77,8 @@ const Landing = () => {
           </div>
         </div>
       </div>
+      
+      <Footer />
     </div>
   );
 };

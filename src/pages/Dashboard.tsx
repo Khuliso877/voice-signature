@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Navbar } from "@/components/Navbar";
+import Footer from "@/components/Footer";
 
 type PersonaSettings = {
   bio: string;
@@ -87,10 +88,15 @@ const DashboardContent = () => {
     if (!user) return;
     
     try {
-      const { error } = await supabase.from("persona_settings").upsert({
-        user_id: user.id,
-        ...persona,
-      });
+      const { error } = await supabase.from("persona_settings").upsert(
+        {
+          user_id: user.id,
+          ...persona,
+        },
+        {
+          onConflict: 'user_id'
+        }
+      );
 
       if (error) throw error;
 
@@ -261,21 +267,36 @@ const DashboardContent = () => {
 
                 <div className="space-y-2">
                   <Label>Tone</Label>
-                  <Input
-                    placeholder="e.g., Professional, Casual, Humorous"
-                    value={persona.tone}
-                    onChange={(e) => setPersona({ ...persona, tone: e.target.value })}
-                  />
+                  <Select value={persona.tone} onValueChange={(value) => setPersona({ ...persona, tone: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a tone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="professional">Professional</SelectItem>
+                      <SelectItem value="casual">Casual</SelectItem>
+                      <SelectItem value="humorous">Humorous</SelectItem>
+                      <SelectItem value="friendly">Friendly</SelectItem>
+                      <SelectItem value="formal">Formal</SelectItem>
+                      <SelectItem value="enthusiastic">Enthusiastic</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Communication Style</Label>
-                  <Textarea
-                    placeholder="Describe how you communicate..."
-                    value={persona.communication_style}
-                    onChange={(e) => setPersona({ ...persona, communication_style: e.target.value })}
-                    rows={3}
-                  />
+                  <Select value={persona.communication_style} onValueChange={(value) => setPersona({ ...persona, communication_style: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a communication style" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="direct">Direct and concise</SelectItem>
+                      <SelectItem value="detailed">Detailed and explanatory</SelectItem>
+                      <SelectItem value="conversational">Conversational and warm</SelectItem>
+                      <SelectItem value="analytical">Analytical and data-driven</SelectItem>
+                      <SelectItem value="creative">Creative and expressive</SelectItem>
+                      <SelectItem value="empathetic">Empathetic and supportive</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
@@ -469,6 +490,7 @@ const DashboardContent = () => {
           </TabsContent>
         </Tabs>
       </div>
+      <Footer />
     </div>
   );
 };
