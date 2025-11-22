@@ -293,13 +293,18 @@ const ChatContent = () => {
             {messages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`flex gap-3 ${
+                className={`flex gap-3 animate-fade-in ${
                   msg.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
                 {msg.role === "assistant" && (
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 relative">
                     <Bot className="h-4 w-4 text-primary" />
+                    {msg === messages[messages.length - 1] && isPlayingAudio && (
+                      <div className="absolute -right-1 -bottom-1 h-3 w-3 rounded-full bg-primary animate-pulse">
+                        <Volume2 className="h-2 w-2 text-primary-foreground" />
+                      </div>
+                    )}
                   </div>
                 )}
                 
