@@ -153,7 +153,7 @@ const ChatContent = () => {
       if (!session) throw new Error("No session");
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`,
+        `https://bpglcfechtxoukhfnhim.supabase.co/functions/v1/chat`,
         {
           method: "POST",
           headers: {
