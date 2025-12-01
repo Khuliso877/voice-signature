@@ -86,7 +86,17 @@ const ChatContent = () => {
         }
       );
 
-      if (!response.ok) throw new Error("Failed to generate speech");
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Text-to-speech error:", errorData);
+        toast({
+          title: "Voice Generation Failed",
+          description: errorData.error || "Failed to generate speech. Please check your API key or usage limits.",
+          variant: "destructive",
+        });
+        setIsPlayingAudio(false);
+        return;
+      }
 
       const { audioContent } = await response.json();
       const audioBlob = new Blob(
@@ -115,6 +125,11 @@ const ChatContent = () => {
       await audio.play();
     } catch (error) {
       console.error("Error playing audio:", error);
+      toast({
+        title: "Voice Error",
+        description: "Failed to play audio. Please try again.",
+        variant: "destructive",
+      });
       setIsPlayingAudio(false);
     }
   };
@@ -165,7 +180,9 @@ const ChatContent = () => {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to get response");
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Chat API error:", errorData);
+        throw new Error(errorData.error || `Failed to get response: ${response.status}`);
       }
 
       if (!response.body) throw new Error("No response body");
@@ -226,9 +243,10 @@ const ChatContent = () => {
       }
     } catch (error) {
       console.error("Chat error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to send message";
       toast({
         title: "Error",
-        description: "Failed to send message. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
