@@ -5,6 +5,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Helper function to convert ArrayBuffer to base64 without stack overflow
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
 // OpenAI TTS as fallback
 async function generateWithOpenAI(text: string, voice: string): Promise<string> {
   const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
@@ -46,7 +58,7 @@ async function generateWithOpenAI(text: string, voice: string): Promise<string> 
   }
 
   const audioBuffer = await response.arrayBuffer();
-  return btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
+  return arrayBufferToBase64(audioBuffer);
 }
 
 // ElevenLabs TTS (primary)
@@ -95,7 +107,7 @@ async function generateWithElevenLabs(text: string, voice: string): Promise<stri
   }
 
   const audioBuffer = await response.arrayBuffer();
-  return btoa(String.fromCharCode(...new Uint8Array(audioBuffer)));
+  return arrayBufferToBase64(audioBuffer);
 }
 
 serve(async (req) => {
