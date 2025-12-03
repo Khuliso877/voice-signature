@@ -18,6 +18,10 @@ serve(async (req) => {
     }
 
     const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY");
+    console.log("API key exists:", !!ELEVENLABS_API_KEY);
+    console.log("API key length:", ELEVENLABS_API_KEY?.length || 0);
+    console.log("API key prefix:", ELEVENLABS_API_KEY?.substring(0, 5) || "none");
+    
     if (!ELEVENLABS_API_KEY) {
       throw new Error("ELEVENLABS_API_KEY is not configured");
     }
