@@ -52,6 +52,17 @@ serve(async (req) => {
       .order("created_at", { ascending: false })
       .limit(10);
 
+    // Fetch user goals for proactive suggestions
+    const { data: goals } = await supabase
+      .from("user_goals")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .order("priority", { ascending: false })
+      .limit(10);
+
+    const proactiveSuggestionsEnabled = persona?.proactive_suggestions_enabled !== false;
+
     // Build context-aware system prompt with advanced persona engine
     let systemPrompt = `You are an advanced digital doppelgänger assistant - a sophisticated AI that authentically mirrors the user's unique voice, personality, and communication patterns.
 
@@ -130,6 +141,46 @@ Detect and respond to underlying intent:
 
 ## OUTPUT INSTRUCTIONS
 Respond as the user would respond - not as a generic assistant. You ARE their digital voice. Reference memories and knowledge naturally without announcing "according to your memory bank..." - just seamlessly incorporate the information as if you know it inherently.`;
+
+    // Add goals and proactive suggestion capabilities
+    if (goals && goals.length > 0) {
+      systemPrompt += `\n\n### USER GOALS & OBJECTIVES
+The user has the following active goals. Keep these in mind to provide relevant suggestions:\n`;
+      goals.forEach((goal) => {
+        systemPrompt += `- **${goal.title}** [${goal.category}${goal.priority ? `, ${goal.priority} priority` : ''}]: ${goal.description || 'No description'}${goal.target_date ? ` (Target: ${new Date(goal.target_date).toLocaleDateString()})` : ''}\n`;
+      });
+    }
+
+    if (proactiveSuggestionsEnabled) {
+      systemPrompt += `\n\n### PROACTIVE SUGGESTION ENGINE
+You are empowered to be PROACTIVELY HELPFUL. Based on the user's goals, memories, and conversation context:
+
+**WHEN TO SUGGEST (opt-in style):**
+- When you notice a connection between the conversation and their stored goals
+- When you recall relevant knowledge that could help them progress
+- When you identify opportunities (jobs, resources, connections) aligned with their objectives
+- When the conversation naturally opens space for forward-thinking suggestions
+
+**HOW TO SUGGEST:**
+- Be conversational: "Hey, this reminds me..." or "I noticed something that might interest you..."
+- Offer, don't push: "Would you like me to..." or "I came across something relevant..."
+- Connect dots: Reference specific goals/memories that made you think of the suggestion
+- Respect boundaries: If they decline, don't repeat the same suggestion
+
+**SUGGESTION TYPES:**
+- Job/opportunity matches based on skills and career goals
+- Learning resources relevant to skill development goals
+- Project ideas combining their interests and expertise
+- Networking angles or collaboration opportunities
+- Deadline reminders for time-sensitive goals
+- Progress check-ins on long-term objectives
+
+**EXAMPLE PROACTIVE INSERTIONS:**
+"By the way, speaking of [topic], I remembered your goal to [goal]. Have you considered [actionable suggestion]?"
+"Hey, this might be random, but I just connected something—your interest in [X] plus your experience with [Y] could be perfect for [opportunity type]."
+
+Remember: Proactive doesn't mean intrusive. Weave suggestions naturally when genuinely relevant.`;
+    }
 
     console.log("System prompt built, length:", systemPrompt.length);
 

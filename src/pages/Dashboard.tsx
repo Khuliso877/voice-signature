@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, FileText, Mic2, Plus, Trash2, BarChart3 } from "lucide-react";
+import { Brain, FileText, Mic2, Plus, Trash2, BarChart3, Target, Lightbulb } from "lucide-react";
 import { MemoryCategoryChart } from "@/components/MemoryCategoryChart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,7 @@ type PersonaSettings = {
   tone: string;
   communication_style: string;
   favorite_phrases: string[];
+  proactive_suggestions_enabled: boolean;
 };
 
 type MemoryFact = {
@@ -36,6 +38,16 @@ type KnowledgeDocument = {
   document_type: string;
 };
 
+type UserGoal = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: string;
+  priority: string;
+  target_date: string | null;
+};
+
 const DashboardContent = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -44,9 +56,11 @@ const DashboardContent = () => {
     tone: "",
     communication_style: "",
     favorite_phrases: [],
+    proactive_suggestions_enabled: true,
   });
   const [memories, setMemories] = useState<MemoryFact[]>([]);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
+  const [goals, setGoals] = useState<UserGoal[]>([]);
   const [newPhrase, setNewPhrase] = useState("");
   const [newMemory, setNewMemory] = useState({
     category: "",
@@ -54,12 +68,20 @@ const DashboardContent = () => {
     importance: "medium" as "low" | "medium" | "high",
   });
   const [newDocument, setNewDocument] = useState({ title: "", content: "", document_type: "" });
+  const [newGoal, setNewGoal] = useState({
+    title: "",
+    description: "",
+    category: "career",
+    priority: "medium",
+    target_date: "",
+  });
 
   useEffect(() => {
     if (user) {
       loadPersona();
       loadMemories();
       loadDocuments();
+      loadGoals();
     }
   }, [user]);
 
@@ -78,6 +100,7 @@ const DashboardContent = () => {
           tone: data.tone || "",
           communication_style: data.communication_style || "",
           favorite_phrases: data.favorite_phrases || [],
+          proactive_suggestions_enabled: data.proactive_suggestions_enabled !== false,
         });
       }
     } catch (error) {
@@ -206,6 +229,66 @@ const DashboardContent = () => {
     }
   };
 
+  const loadGoals = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("user_goals")
+        .select("*")
+        .eq("user_id", user?.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      if (data) setGoals(data);
+    } catch (error) {
+      console.error("Error loading goals:", error);
+    }
+  };
+
+  const addGoal = async () => {
+    if (!user || !newGoal.title) return;
+
+    try {
+      const { error } = await supabase.from("user_goals").insert({
+        user_id: user.id,
+        title: newGoal.title,
+        description: newGoal.description,
+        category: newGoal.category,
+        priority: newGoal.priority,
+        target_date: newGoal.target_date || null,
+      });
+
+      if (error) throw error;
+
+      setNewGoal({ title: "", description: "", category: "career", priority: "medium", target_date: "" });
+      loadGoals();
+      toast({ title: "Success", description: "Goal added!" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const deleteGoal = async (id: string) => {
+    try {
+      const { error } = await supabase.from("user_goals").delete().eq("id", id);
+      if (error) throw error;
+      loadGoals();
+      toast({ title: "Success", description: "Goal deleted!" });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const toggleGoalStatus = async (id: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === "active" ? "completed" : "active";
+      const { error } = await supabase.from("user_goals").update({ status: newStatus }).eq("id", id);
+      if (error) throw error;
+      loadGoals();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
   const addPhrase = () => {
     if (!newPhrase.trim()) return;
     setPersona({
@@ -235,8 +318,9 @@ const DashboardContent = () => {
         </div>
 
         <Tabs defaultValue="persona" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-lg grid-cols-4">
             <TabsTrigger value="persona">Persona</TabsTrigger>
+            <TabsTrigger value="goals">Goals</TabsTrigger>
             <TabsTrigger value="memory">Memory</TabsTrigger>
             <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
           </TabsList>
@@ -325,9 +409,170 @@ const DashboardContent = () => {
                   </div>
                 </div>
 
+                {/* Proactive Suggestions Toggle */}
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex items-center gap-3">
+                    <Lightbulb className="h-5 w-5 text-accent" />
+                    <div>
+                      <Label className="text-sm font-medium">Proactive Suggestions</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Allow AI to suggest opportunities based on your goals
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={persona.proactive_suggestions_enabled}
+                    onCheckedChange={(checked) => 
+                      setPersona({ ...persona, proactive_suggestions_enabled: checked })
+                    }
+                  />
+                </div>
+
                 <Button onClick={savePersona} className="w-full">
                   Save Persona Settings
                 </Button>
+              </div>
+            </Card>
+          </TabsContent>
+
+          {/* Goals Tab */}
+          <TabsContent value="goals" className="space-y-4">
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <Target className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold">Goals & Objectives</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Set goals for proactive AI suggestions
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Goal Title</Label>
+                    <Input
+                      placeholder="e.g., Learn Machine Learning"
+                      value={newGoal.title}
+                      onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select 
+                      value={newGoal.category} 
+                      onValueChange={(value) => setNewGoal({ ...newGoal, category: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="career">Career</SelectItem>
+                        <SelectItem value="learning">Learning</SelectItem>
+                        <SelectItem value="project">Project</SelectItem>
+                        <SelectItem value="networking">Networking</SelectItem>
+                        <SelectItem value="personal">Personal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Textarea
+                    placeholder="Describe your goal in detail..."
+                    value={newGoal.description}
+                    onChange={(e) => setNewGoal({ ...newGoal, description: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Priority</Label>
+                    <Select 
+                      value={newGoal.priority} 
+                      onValueChange={(value) => setNewGoal({ ...newGoal, priority: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Target Date (Optional)</Label>
+                    <Input
+                      type="date"
+                      value={newGoal.target_date}
+                      onChange={(e) => setNewGoal({ ...newGoal, target_date: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <Button onClick={addGoal} className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Goal
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {goals.map((goal) => (
+                  <div 
+                    key={goal.id} 
+                    className={`p-4 rounded-lg flex justify-between items-start ${
+                      goal.status === "completed" ? "bg-muted/50 opacity-60" : "bg-muted"
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <button
+                          onClick={() => toggleGoalStatus(goal.id, goal.status)}
+                          className={`h-5 w-5 rounded-full border-2 flex items-center justify-center ${
+                            goal.status === "completed" 
+                              ? "bg-primary border-primary text-primary-foreground" 
+                              : "border-muted-foreground"
+                          }`}
+                        >
+                          {goal.status === "completed" && "✓"}
+                        </button>
+                        <span className={`font-medium ${goal.status === "completed" ? "line-through" : ""}`}>
+                          {goal.title}
+                        </span>
+                        <span className="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full">
+                          {goal.category}
+                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          goal.priority === "high" ? "bg-destructive/20 text-destructive" :
+                          goal.priority === "medium" ? "bg-primary/20 text-primary" :
+                          "bg-muted-foreground/20 text-muted-foreground"
+                        }`}>
+                          {goal.priority}
+                        </span>
+                      </div>
+                      {goal.description && (
+                        <p className="text-sm text-muted-foreground ml-7">{goal.description}</p>
+                      )}
+                      {goal.target_date && (
+                        <p className="text-xs text-muted-foreground ml-7 mt-1">
+                          Target: {new Date(goal.target_date).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => deleteGoal(goal.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                {goals.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No goals added yet. Add your first goal to enable proactive AI suggestions.
+                  </p>
+                )}
               </div>
             </Card>
           </TabsContent>
