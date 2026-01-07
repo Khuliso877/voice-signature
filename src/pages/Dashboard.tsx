@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, FileText, Mic2, Plus, Trash2 } from "lucide-react";
+import { Brain, FileText, Mic2, Plus, Trash2, BarChart3 } from "lucide-react";
+import { MemoryCategoryChart } from "@/components/MemoryCategoryChart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -332,6 +333,22 @@ const DashboardContent = () => {
           </TabsContent>
 
           <TabsContent value="memory" className="space-y-4">
+            {/* Memory Category Chart */}
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold">Memory Overview</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Your memories by category
+                  </p>
+                </div>
+              </div>
+              <MemoryCategoryChart memories={memories} />
+            </Card>
+
             <Card className="p-6">
               <div className="flex items-center gap-3 mb-6">
                 <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
