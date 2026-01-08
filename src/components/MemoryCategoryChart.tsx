@@ -55,21 +55,20 @@ export function MemoryCategoryChart({ memories }: MemoryCategoryChartProps) {
     <ChartContainer config={chartConfig} className="h-[280px] w-full">
       <BarChart
         data={chartData}
-        layout="vertical"
-        margin={{ top: 10, right: 30, left: 10, bottom: 10 }}
+        margin={{ top: 10, right: 10, left: 10, bottom: 60 }}
       >
-        <XAxis type="number" allowDecimals={false} />
-        <YAxis 
+        <XAxis 
           type="category" 
           dataKey="name" 
-          width={100}
-          tick={{ fontSize: 12 }}
+          tick={{ fontSize: 11 }}
+          interval={0}
         />
+        <YAxis type="number" allowDecimals={false} />
         <ChartTooltip
           content={<ChartTooltipContent />}
           cursor={{ fill: "hsl(var(--muted))" }}
         />
-        <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={24}>
+        <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={32}>
           {chartData.map((_, index) => (
             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
           ))}
