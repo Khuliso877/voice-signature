@@ -60,8 +60,11 @@ export function MemoryCategoryChart({ memories }: MemoryCategoryChartProps) {
         <XAxis 
           type="category" 
           dataKey="name" 
-          tick={{ fontSize: 11 }}
+          tick={{ fontSize: 11, fill: "hsl(var(--foreground))" }}
           interval={0}
+          angle={-45}
+          textAnchor="end"
+          height={70}
         />
         <YAxis type="number" allowDecimals={false} />
         <ChartTooltip
