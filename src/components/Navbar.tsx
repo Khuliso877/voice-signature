@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Brain, LogOut, MessageSquare, LayoutDashboard } from "lucide-react";
+import { RealTimeClock } from "./RealTimeClock";
 
 export const Navbar = () => {
   const navigate = useNavigate();
@@ -47,10 +48,13 @@ export const Navbar = () => {
             </div>
           </div>
 
-          <Button variant="ghost" size="sm" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-4">
+            <RealTimeClock />
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </div>
     </nav>
