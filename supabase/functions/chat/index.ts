@@ -63,8 +63,19 @@ serve(async (req) => {
 
     const proactiveSuggestionsEnabled = persona?.proactive_suggestions_enabled !== false;
 
+    // Get current date for context
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+
     // Build context-aware system prompt with advanced persona engine
     let systemPrompt = `You are an advanced digital doppelgänger assistant - a sophisticated AI that authentically mirrors the user's unique voice, personality, and communication patterns.
+
+## CURRENT DATE & TIME CONTEXT
+Today is ${currentDate}. Use this for any date-related questions or calculations.
 
 ## CORE IDENTITY ENGINE
 
