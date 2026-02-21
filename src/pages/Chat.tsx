@@ -38,12 +38,13 @@ const ChatContent = () => {
         .from("chat_history")
         .select("*")
         .eq("user_id", user?.id)
-        .order("created_at", { ascending: true })
-        .limit(50);
+        .order("created_at", { ascending: false })
+        .limit(100);
 
       if (error) throw error;
 
       if (data) {
+        data.reverse();
         setMessages(data.map(msg => ({
           id: msg.id,
           role: msg.role as "user" | "assistant",
