@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Navbar } from "@/components/Navbar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { DopamineDashboard } from "@/components/dashboard/DopamineDashboard";
 
 type Message = {
   id?: string;
@@ -22,15 +24,17 @@ const ChatContent = () => {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Load chat history
   useEffect(() => {
-    if (user) {
-      loadChatHistory();
-    }
+    if (user) loadChatHistory();
   }, [user]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const loadChatHistory = async () => {
     try {
@@ -58,7 +62,6 @@ const ChatContent = () => {
 
   const saveChatMessage = async (role: "user" | "assistant", content: string) => {
     if (!user) return;
-    
     try {
       await supabase.from("chat_history").insert({
         user_id: user.id,
@@ -72,17 +75,13 @@ const ChatContent = () => {
 
   const playTextToSpeech = async (text: string) => {
     if (!voiceEnabled || !text) return;
-
     try {
       setIsPlayingAudio(true);
-      
       const response = await fetch(
         `https://bpglcfechtxoukhfnhim.supabase.co/functions/v1/text-to-speech`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, voice: "Aria" }),
         }
       );
@@ -92,7 +91,7 @@ const ChatContent = () => {
         console.error("Text-to-speech error:", errorData);
         toast({
           title: "Voice Generation Failed",
-          description: errorData.error || "Failed to generate speech. Please check your API key or usage limits.",
+          description: errorData.error || "Failed to generate speech.",
           variant: "destructive",
         });
         setIsPlayingAudio(false);
@@ -106,62 +105,40 @@ const ChatContent = () => {
       );
       const audioUrl = URL.createObjectURL(audioBlob);
 
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
+      if (audioRef.current) audioRef.current.pause();
 
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
-      
-      audio.onended = () => {
-        setIsPlayingAudio(false);
-        URL.revokeObjectURL(audioUrl);
-      };
-      
-      audio.onerror = () => {
-        setIsPlayingAudio(false);
-        URL.revokeObjectURL(audioUrl);
-      };
-
+      audio.onended = () => { setIsPlayingAudio(false); URL.revokeObjectURL(audioUrl); };
+      audio.onerror = () => { setIsPlayingAudio(false); URL.revokeObjectURL(audioUrl); };
       await audio.play();
     } catch (error) {
       console.error("Error playing audio:", error);
-      toast({
-        title: "Voice Error",
-        description: "Failed to play audio. Please try again.",
-        variant: "destructive",
-      });
+      toast({ title: "Voice Error", description: "Failed to play audio.", variant: "destructive" });
       setIsPlayingAudio(false);
     }
   };
 
   const clearHistory = async () => {
     if (!user) return;
-    
     try {
       await supabase.from("chat_history").delete().eq("user_id", user.id);
       setMessages([]);
-      toast({
-        title: "History cleared",
-        description: "Your chat history has been deleted.",
-      });
+      toast({ title: "History cleared", description: "Your chat history has been deleted." });
     } catch (error) {
       console.error("Error clearing history:", error);
-      toast({
-        title: "Error",
-        description: "Failed to clear history.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to clear history.", variant: "destructive" });
     }
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || !user) return;
+  const sendMessage = useCallback(async (messageText?: string) => {
+    const text = messageText || input;
+    if (!text.trim() || !user) return;
 
-    const userMessage: Message = { role: "user", content: input };
+    const userMessage: Message = { role: "user", content: text };
     setMessages((prev) => [...prev, userMessage]);
-    saveChatMessage("user", input);
-    setInput("");
+    saveChatMessage("user", text);
+    if (!messageText) setInput("");
     setIsLoading(true);
 
     try {
@@ -182,7 +159,6 @@ const ChatContent = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error("Chat API error:", errorData);
         throw new Error(errorData.error || `Failed to get response: ${response.status}`);
       }
 
@@ -233,137 +209,142 @@ const ChatContent = () => {
         }
       }
 
-      // Save assistant message
       if (assistantContent) {
         saveChatMessage("assistant", assistantContent);
-        
-        // Play audio for assistant response
-        if (voiceEnabled) {
-          await playTextToSpeech(assistantContent);
-        }
+        if (voiceEnabled) await playTextToSpeech(assistantContent);
       }
     } catch (error) {
       console.error("Chat error:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to send message";
       toast({
         title: "Error",
-        description: errorMessage,
+        description: error instanceof Error ? error.message : "Failed to send message",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [input, user, messages, voiceEnabled]);
+
+  const handleSidebarMessage = useCallback((message: string) => {
+    setInput(message);
+    // Auto-send the message
+    setTimeout(() => {
+      sendMessage(message);
+    }, 100);
+  }, [sendMessage]);
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <Navbar />
-      <div className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
-        <div className="mb-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Chat with Your Doppelgänger
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Ask questions and see responses in your unique style
-            </p>
-          </div>
-          {messages.length > 0 && (
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={clearHistory}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear History
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setVoiceEnabled(!voiceEnabled);
-                  if (audioRef.current && isPlayingAudio) {
-                    audioRef.current.pause();
-                    setIsPlayingAudio(false);
-                  }
-                }}
-              >
-                {voiceEnabled ? (
-                  <>
-                    <Volume2 className="h-4 w-4 mr-2" />
-                    Voice On
-                  </>
-                ) : (
-                  <>
-                    <VolumeX className="h-4 w-4 mr-2" />
-                    Voice Off
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-        </div>
+    <SidebarProvider defaultOpen={true}>
+      <div className="min-h-screen bg-background flex w-full">
+        <DopamineDashboard onSendMessage={handleSidebarMessage} />
 
-        <Card className="h-[600px] flex flex-col">
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {messages.length === 0 && (
-              <div className="h-full flex items-center justify-center text-muted-foreground">
-                Start a conversation...
+        <div className="flex-1 flex flex-col min-w-0">
+          <Navbar />
+          
+          <div className="flex items-center gap-2 px-4 py-2 border-b bg-card/50">
+            <SidebarTrigger />
+            <span className="text-xs text-muted-foreground">Toggle Dashboard</span>
+          </div>
+
+          <div className="flex-1 container mx-auto px-4 py-6 max-w-4xl">
+            <div className="mb-4 flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  Chat with Your Doppelgänger
+                </h1>
+                <p className="text-muted-foreground text-sm mt-1">
+                  Ask questions and see responses in your unique style
+                </p>
               </div>
-            )}
-            
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`flex gap-3 animate-fade-in ${
-                  msg.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                {msg.role === "assistant" && (
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 relative">
-                    <Bot className="h-4 w-4 text-primary" />
-                    {msg === messages[messages.length - 1] && isPlayingAudio && (
-                      <div className="absolute -right-1 -bottom-1 h-3 w-3 rounded-full bg-primary animate-pulse">
-                        <Volume2 className="h-2 w-2 text-primary-foreground" />
+              {messages.length > 0 && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={clearHistory}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setVoiceEnabled(!voiceEnabled);
+                      if (audioRef.current && isPlayingAudio) {
+                        audioRef.current.pause();
+                        setIsPlayingAudio(false);
+                      }
+                    }}
+                  >
+                    {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <Card className="h-[calc(100vh-220px)] flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {messages.length === 0 && (
+                  <div className="h-full flex items-center justify-center text-muted-foreground">
+                    Start a conversation...
+                  </div>
+                )}
+
+                {messages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex gap-3 animate-fade-in ${
+                      msg.role === "user" ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    {msg.role === "assistant" && (
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 relative">
+                        <Bot className="h-4 w-4 text-primary" />
+                        {msg === messages[messages.length - 1] && isPlayingAudio && (
+                          <div className="absolute -right-1 -bottom-1 h-3 w-3 rounded-full bg-primary animate-pulse">
+                            <Volume2 className="h-2 w-2 text-primary-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div
+                      className={`max-w-[80%] p-4 rounded-lg ${
+                        msg.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+
+                    {msg.role === "user" && (
+                      <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
+                        <User className="h-4 w-4 text-accent" />
                       </div>
                     )}
                   </div>
-                )}
-                
-                <div
-                  className={`max-w-[80%] p-4 rounded-lg ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
-                </div>
-                
-                {msg.role === "user" && (
-                  <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    <User className="h-4 w-4 text-accent" />
-                  </div>
-                )}
+                ))}
+                <div ref={messagesEndRef} />
               </div>
-            ))}
-          </div>
 
-          <div className="border-t p-4">
-            <div className="flex gap-2">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && !isLoading && sendMessage()}
-                placeholder="Type your message..."
-                disabled={isLoading}
-                className="flex-1"
-              />
-              <Button onClick={sendMessage} disabled={isLoading || !input.trim()}>
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
+              <div className="border-t p-4">
+                <div className="flex gap-2">
+                  <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && !isLoading && sendMessage()}
+                    placeholder="Type your message..."
+                    disabled={isLoading}
+                    className="flex-1"
+                  />
+                  <Button onClick={() => sendMessage()} disabled={isLoading || !input.trim()}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
           </div>
-        </Card>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };
 
