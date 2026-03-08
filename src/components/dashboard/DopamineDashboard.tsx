@@ -1,4 +1,4 @@
-import { History, User, Zap } from "lucide-react";
+import { History, User, Zap, Search } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -11,6 +11,7 @@ import {
 import { ChatHistoryPanel } from "./ChatHistoryPanel";
 import { ProfilePanel } from "./ProfilePanel";
 import { QuickActionsPanel } from "./QuickActionsPanel";
+import { SearchPanel } from "./SearchPanel";
 
 interface DopamineDashboardProps {
   onSendMessage: (message: string) => void;
@@ -31,6 +32,21 @@ export const DopamineDashboard = ({ onSendMessage }: DopamineDashboardProps) => 
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Omniscient Search - Insight Navigator */}
+        <SidebarGroup>
+          <SidebarGroupLabel>
+            <Search className="h-3.5 w-3.5 mr-1.5" />
+            Insight Navigator
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <div className="h-[280px]">
+              <SearchPanel onSendMessage={onSendMessage} />
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarSeparator />
+
         {/* Quick Actions */}
         <SidebarGroup>
           <SidebarGroupLabel>
