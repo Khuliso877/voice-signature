@@ -16,6 +16,7 @@ type Attachment = {
   url: string;
   fileName: string;
   fileType: string;
+  storagePath?: string;
 };
 
 type Message = {
