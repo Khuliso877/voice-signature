@@ -127,14 +127,17 @@ const ChatContent = () => {
 
       if (error) throw error;
 
-      const { data: urlData } = supabase.storage
+      const { data: signedData, error: signError } = await supabase.storage
         .from("chat-attachments")
-        .getPublicUrl(filePath);
+        .createSignedUrl(filePath, 60 * 60 * 24 * 7); // 7 days
+
+      if (signError || !signedData?.signedUrl) throw signError || new Error("Failed to get signed URL");
 
       return {
-        url: urlData.publicUrl,
+        url: signedData.signedUrl,
         fileName: file.name,
         fileType: file.type,
+        storagePath: filePath,
       };
     } catch (error) {
       console.error("Upload error:", error);
