@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Send, User, Bot, Trash2, Volume2, VolumeX } from "lucide-react";
+import { Send, User, Bot, Trash2, Volume2, VolumeX, Paperclip } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,12 +10,22 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Navbar } from "@/components/Navbar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DopamineDashboard } from "@/components/dashboard/DopamineDashboard";
+import { ChatAttachmentPreview, ChatMessageAttachment } from "@/components/chat/ChatAttachment";
+
+type Attachment = {
+  url: string;
+  fileName: string;
+  fileType: string;
+};
 
 type Message = {
   id?: string;
   role: "user" | "assistant";
   content: string;
+  attachments?: Attachment[];
 };
+
+const ACCEPTED_FILE_TYPES = "image/*,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.ppt,.pptx";
 
 const ChatContent = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -23,8 +33,12 @@ const ChatContent = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -35,6 +49,13 @@ const ChatContent = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Cleanup preview URL on unmount or change
+  useEffect(() => {
+    return () => {
+      if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+    };
+  }, [pendingPreview]);
 
   const loadChatHistory = async () => {
     try {
@@ -49,11 +70,31 @@ const ChatContent = () => {
 
       if (data) {
         data.reverse();
-        setMessages(data.map(msg => ({
-          id: msg.id,
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-        })));
+        setMessages(data.map(msg => {
+          // Try to parse attachments from content metadata
+          let attachments: Attachment[] | undefined;
+          let content = msg.content;
+          
+          // Check for attachment metadata marker
+          const attachmentMarker = "\n\n[attachment:";
+          if (content.includes(attachmentMarker)) {
+            const markerIndex = content.indexOf(attachmentMarker);
+            const metaPart = content.slice(markerIndex);
+            content = content.slice(0, markerIndex);
+            
+            try {
+              const jsonStr = metaPart.replace("\n\n[attachment:", "").replace("]", "");
+              attachments = [JSON.parse(jsonStr)];
+            } catch { /* ignore parse errors */ }
+          }
+
+          return {
+            id: msg.id,
+            role: msg.role as "user" | "assistant",
+            content,
+            attachments,
+          };
+        }));
       }
     } catch (error) {
       console.error("Error loading chat history:", error);
@@ -71,6 +112,66 @@ const ChatContent = () => {
     } catch (error) {
       console.error("Error saving message:", error);
     }
+  };
+
+  const uploadFile = async (file: File): Promise<Attachment | null> => {
+    if (!user) return null;
+    setIsUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from("chat-attachments")
+        .upload(filePath, file);
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from("chat-attachments")
+        .getPublicUrl(filePath);
+
+      return {
+        url: urlData.publicUrl,
+        fileName: file.name,
+        fileType: file.type,
+      };
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast({ title: "Upload Failed", description: "Could not upload file.", variant: "destructive" });
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max file size is 10MB.", variant: "destructive" });
+      return;
+    }
+
+    // Clean up old preview
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+
+    setPendingFile(file);
+    if (file.type.startsWith("image/")) {
+      setPendingPreview(URL.createObjectURL(file));
+    } else {
+      setPendingPreview(null);
+    }
+
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const removePendingFile = () => {
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+    setPendingFile(null);
+    setPendingPreview(null);
   };
 
   const playTextToSpeech = async (text: string) => {
@@ -133,17 +234,41 @@ const ChatContent = () => {
 
   const sendMessage = useCallback(async (messageText?: string) => {
     const text = messageText || input;
-    if (!text.trim() || !user) return;
+    if ((!text.trim() && !pendingFile) || !user) return;
 
-    const userMessage: Message = { role: "user", content: text };
+    let attachment: Attachment | null = null;
+    if (pendingFile) {
+      attachment = await uploadFile(pendingFile);
+      removePendingFile();
+    }
+
+    const displayContent = text.trim() || (attachment ? `Sent ${attachment.fileName}` : "");
+    const userMessage: Message = {
+      role: "user",
+      content: displayContent,
+      attachments: attachment ? [attachment] : undefined,
+    };
     setMessages((prev) => [...prev, userMessage]);
-    saveChatMessage("user", text);
+
+    // Save with attachment metadata embedded
+    let saveContent = displayContent;
+    if (attachment) {
+      saveContent += `\n\n[attachment:${JSON.stringify(attachment)}]`;
+    }
+    saveChatMessage("user", saveContent);
+
     if (!messageText) setInput("");
     setIsLoading(true);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("No session");
+
+      // Build message for AI - include attachment context
+      let aiContent = displayContent;
+      if (attachment) {
+        aiContent += `\n[User attached a file: ${attachment.fileName} (${attachment.fileType})]`;
+      }
 
       const response = await fetch(
         `https://bpglcfechtxoukhfnhim.supabase.co/functions/v1/chat`,
@@ -153,7 +278,7 @@ const ChatContent = () => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ messages: [...messages, userMessage] }),
+          body: JSON.stringify({ messages: [...messages, { role: "user", content: aiContent }] }),
         }
       );
 
@@ -223,11 +348,10 @@ const ChatContent = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [input, user, messages, voiceEnabled]);
+  }, [input, user, messages, voiceEnabled, pendingFile]);
 
   const handleSidebarMessage = useCallback((message: string) => {
     setInput(message);
-    // Auto-send the message
     setTimeout(() => {
       sendMessage(message);
     }, 100);
@@ -313,6 +437,14 @@ const ChatContent = () => {
                       }`}
                     >
                       <p className="whitespace-pre-wrap">{msg.content}</p>
+                      {msg.attachments?.map((att, i) => (
+                        <ChatMessageAttachment
+                          key={i}
+                          url={att.url}
+                          fileName={att.fileName}
+                          fileType={att.fileType}
+                        />
+                      ))}
                     </div>
 
                     {msg.role === "user" && (
@@ -325,8 +457,31 @@ const ChatContent = () => {
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="border-t p-4">
+              <div className="border-t p-4 space-y-2">
+                {pendingFile && (
+                  <ChatAttachmentPreview
+                    file={pendingFile}
+                    previewUrl={pendingPreview}
+                    onRemove={removePendingFile}
+                  />
+                )}
                 <div className="flex gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={ACCEPTED_FILE_TYPES}
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading || isUploading}
+                    title="Attach file"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
                   <Input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -335,7 +490,10 @@ const ChatContent = () => {
                     disabled={isLoading}
                     className="flex-1"
                   />
-                  <Button onClick={() => sendMessage()} disabled={isLoading || !input.trim()}>
+                  <Button
+                    onClick={() => sendMessage()}
+                    disabled={(isLoading || isUploading) || (!input.trim() && !pendingFile)}
+                  >
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
