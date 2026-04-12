@@ -1,4 +1,4 @@
-import { X, FileText, Image as ImageIcon } from "lucide-react";
+import { X, FileText, Image as ImageIcon, Download, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ChatAttachmentPreviewProps {
