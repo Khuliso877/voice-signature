@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Send, User, Bot, Trash2, Volume2, VolumeX, Paperclip } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -486,13 +486,25 @@ const ChatContent = () => {
                   >
                     <Paperclip className="h-4 w-4" />
                   </Button>
-                  <Input
+                  <Textarea
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && !isLoading && sendMessage()}
-                    placeholder="Type your message..."
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      // Auto-resize
+                      const ta = e.target;
+                      ta.style.height = "auto";
+                      ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey && !isLoading) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                    placeholder="Type your message... (Shift+Enter for new line)"
                     disabled={isLoading}
-                    className="flex-1"
+                    className="flex-1 min-h-[40px] max-h-[200px] resize-none py-2"
+                    rows={1}
                   />
                   <Button
                     onClick={() => sendMessage()}
