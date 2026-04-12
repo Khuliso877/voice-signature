@@ -24,6 +24,8 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   attachments?: Attachment[];
+  downloadFile?: { url: string; fileName: string };
+  isProcessingDoc?: boolean;
 };
 
 const ACCEPTED_FILE_TYPES = "image/*,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.ppt,.pptx";
