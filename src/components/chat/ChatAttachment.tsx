@@ -64,3 +64,36 @@ export const ChatMessageAttachment = ({ url, fileName, fileType }: ChatMessageAt
     </a>
   );
 };
+
+interface ChatDownloadAttachmentProps {
+  url: string;
+  fileName: string;
+  isProcessing?: boolean;
+}
+
+export const ChatDownloadAttachment = ({ url, fileName, isProcessing }: ChatDownloadAttachmentProps) => {
+  if (isProcessing) {
+    return (
+      <div className="flex items-center gap-2 mt-2 p-3 bg-background/50 rounded-lg border animate-pulse">
+        <Loader2 className="h-5 w-5 text-primary animate-spin" />
+        <span className="text-sm text-muted-foreground">Processing document...</span>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      download={fileName}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 mt-2 p-3 bg-primary/10 rounded-lg border border-primary/20 hover:bg-primary/20 transition-colors"
+    >
+      <Download className="h-5 w-5 text-primary" />
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium truncate block">{fileName}</span>
+        <span className="text-xs text-muted-foreground">Click to download</span>
+      </div>
+    </a>
+  );
+};
