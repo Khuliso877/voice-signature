@@ -354,6 +354,8 @@ const ChatContent = () => {
             // Determine output format from text
             let outputFormat = "text";
             if (lowerText.includes("csv") || lowerText.includes("spreadsheet")) outputFormat = "csv";
+            else if (lowerText.includes("pdf")) outputFormat = "pdf";
+            else if (lowerText.includes("word") || lowerText.includes("docx") || lowerText.includes("doc")) outputFormat = "docx";
             else if (lowerText.includes("markdown") || lowerText.includes("md")) outputFormat = "markdown";
             
             // Add processing indicator
