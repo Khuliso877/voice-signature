@@ -342,6 +342,85 @@ const ChatContent = () => {
 
       if (assistantContent) {
         saveChatMessage("assistant", assistantContent);
+        
+        // Check if the AI response + attachment warrants document processing
+        if (attachment && text.trim()) {
+          // Detect if user wants document processing
+          const processingKeywords = ['optimize', 'refine', 'transform', 'convert', 'edit', 'improve', 'rewrite', 'fix', 'update', 'analyze', 'process', 'format', 'restructure', 'enhance', 'polish', 'revise', 'summarize', 'extract'];
+          const lowerText = text.toLowerCase();
+          const wantsProcessing = processingKeywords.some(kw => lowerText.includes(kw));
+          
+          if (wantsProcessing && attachment.storagePath) {
+            // Determine output format from text
+            let outputFormat = "text";
+            if (lowerText.includes("csv") || lowerText.includes("spreadsheet")) outputFormat = "csv";
+            else if (lowerText.includes("markdown") || lowerText.includes("md")) outputFormat = "markdown";
+            
+            // Add processing indicator
+            setMessages(prev => [...prev, { 
+              role: "assistant", 
+              content: "📄 Processing your document...", 
+              isProcessingDoc: true 
+            }]);
+            
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              const procResponse = await fetch(
+                `https://bpglcfechtxoukhfnhim.supabase.co/functions/v1/process-document`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${session?.access_token}`,
+                  },
+                  body: JSON.stringify({
+                    storagePath: attachment.storagePath,
+                    fileName: attachment.fileName,
+                    fileType: attachment.fileType,
+                    instruction: text,
+                    outputFormat,
+                  }),
+                }
+              );
+              
+              if (!procResponse.ok) throw new Error("Processing failed");
+              
+              const result = await procResponse.json();
+              
+              // Replace processing indicator with result
+              setMessages(prev => {
+                const newMsgs = [...prev];
+                const procIdx = newMsgs.findIndex(m => m.isProcessingDoc);
+                if (procIdx !== -1) {
+                  newMsgs[procIdx] = {
+                    role: "assistant",
+                    content: `✅ Document processed! Here's your optimized file:\n\n${result.processedContent}`,
+                    downloadFile: { url: result.downloadUrl, fileName: result.fileName },
+                    isProcessingDoc: false,
+                  };
+                }
+                return newMsgs;
+              });
+              
+              saveChatMessage("assistant", `[Processed document: ${result.fileName}] ${result.processedContent}`);
+            } catch (procError) {
+              console.error("Document processing error:", procError);
+              setMessages(prev => {
+                const newMsgs = [...prev];
+                const procIdx = newMsgs.findIndex(m => m.isProcessingDoc);
+                if (procIdx !== -1) {
+                  newMsgs[procIdx] = {
+                    role: "assistant",
+                    content: "❌ Document processing failed. Please try again.",
+                    isProcessingDoc: false,
+                  };
+                }
+                return newMsgs;
+              });
+            }
+          }
+        }
+        
         if (voiceEnabled) await playTextToSpeech(assistantContent);
       }
     } catch (error) {
