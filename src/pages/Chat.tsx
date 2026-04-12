@@ -530,6 +530,15 @@ const ChatContent = () => {
                           fileType={att.fileType}
                         />
                       ))}
+                      {msg.isProcessingDoc && (
+                        <ChatDownloadAttachment url="" fileName="" isProcessing />
+                      )}
+                      {msg.downloadFile && (
+                        <ChatDownloadAttachment
+                          url={msg.downloadFile.url}
+                          fileName={msg.downloadFile.fileName}
+                        />
+                      )}
                     </div>
 
                     {msg.role === "user" && (
