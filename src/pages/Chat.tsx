@@ -10,7 +10,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Navbar } from "@/components/Navbar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { DopamineDashboard } from "@/components/dashboard/DopamineDashboard";
-import { ChatAttachmentPreview, ChatMessageAttachment } from "@/components/chat/ChatAttachment";
+import { ChatAttachmentPreview, ChatMessageAttachment, ChatDownloadAttachment } from "@/components/chat/ChatAttachment";
 
 type Attachment = {
   url: string;
